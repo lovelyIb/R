@@ -41,6 +41,7 @@ f-test
 
 회귀분석 : 변수들 사이의 특성을 나타냄. 회귀직선을 만드는거.
 
+
  y 종속변수 beta_0 상수 beta_1 회귀계수 x 독립변수 epsilon 오차항
  
  y = beta_0 + beta_1 * x + epsilon
