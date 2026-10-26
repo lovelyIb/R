@@ -1,0 +1,104 @@
+library(rstatix)
+library(skimr)
+
+df <- read.csv("C:\\Users\\USER\\Downloads\\archive (1)\\car_sales_data.csv", header = TRUE, stringsAsFactors = TRUE)
+skim(df)
+
+df <- na.omit(df)
+
+
+result <- lm(Price ~ ., data = df)
+result1 <- lm(Price ~ 1, data = df)
+anova_result <- anova(result1, result)  
+print(anova_result)
+
+summary(result)
+
+
+
+df <- select(df, -c("ModelMondeo", "ModelPolo", "ModelYaris", "ModelZ4"))
+
+result <- lm(Price ~ ., data = df)
+result1 <- lm(Price ~ 1, data = df) 
+summary(result)
+
+saveRDS(result, "C:\\Users\\USER\\Downloads\\archive (1)\\car_regression_model.rds")
+
+loaded_model <- readRDS("C:\\Users\\USER\\Downloads\\archive (1)\\car_regression_model.rds")
+
+
+new_data <- read.csv("C:\\Users\\USER\\Downloads\\archive (1)\\car_sales_data.csv")
+
+
+predicted <- predict(loaded_model, newdata = new_data)
+head(predicted)
+
+results <- data.frame(new_data, Predicted = predicted)
+
+rmse <- sqrt(mean((results$Price - results$Predicted)^2))
+print(paste("RMSE:", round(rmse, 3)))
+
+#1) 선형성 → 예측하고자 하는 종속변수 y와 독립변수 x간의 선형성을 이루어야 함
+Fitted <- fitted(result) 
+Residuals <- resid(result) 
+
+
+#등분산성 : p>0.05보다 크면, 가정을 유지
+library(lmtest)
+bptest(result)
+
+library(ggplot2)
+
+StdResid <- sqrt(abs(df$Residuals)) # 표준화된 잔차의 크기 근사치
+
+ggplot(df, aes(x = Fitted, y = StdResid)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "loess", se = FALSE, color = "blue") +
+  labs(title = "Scale-Location Plot (등분산성 확인)",
+       x = "적합값 (Fitted Values)",
+       y = "Standardized Residuals") +
+  theme_minimal()
+
+#독립성 : p>0.05보다 크면 잔차의 독립성을 가짐
+library(car)
+durbinWatsonTest(result)
+
+#정규성 : p>0.05보다 크면 귀무가설 채택
+shapiro_test(result$residuals)
+
+#이상치검정 : cook's D 값이 높으면 문제
+library(ggplot2)
+cand <- influencePlot(result, id = list(n = 3))
+
+mf <- model.frame(result)
+z <- round(scale(mf[sapply(mf, is.numeric)]), 1)
+
+rownames(z) <- rownames(mf)
+cbind(round(cand, 2), z[rownames(cand), ])
+
+#CookD값이 0.5미만이면 이상치없다.
+#max Cook's D < 0.5 → 영향점 없음, 0.5~1 → 확인, > 1 → 영향점
+
+#이상치 제거
+out_rows <- c("229", "446") 
+df2 <- df[!rownames(df) %in% out_rows, ]
+
+result2 <- lm(Diabetes ~ ., data = df2)
+cand <- influencePlot(result2, id = list(n = 3))
+
+max(cooks.distance(result2))
+
+
+#다중공선성(변수의 중복성) : 10이상 GVIF^(1/(2*DF))
+vif_values <- vif(result)
+
+library(ggplot2)
+library("MASS")
+
+result_back = lm(charges ~., data=df)
+Df_fit_back =stepAIC(result_back, direction= "backward", trace = T)
+
+Df_fit_select = stepAIC(result_back, direction = "both", trace = T)
+
+result_forward = lm(charges ~ 1, data=df)
+Df_fit_forward =stepAIC(result_forward, direction= "forward",scope = list(lower = result_forward, upper = result_back) ,trace = T)
